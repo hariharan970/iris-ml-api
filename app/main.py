@@ -4,6 +4,8 @@ import joblib
 import numpy as np
 from fastapi import FastAPI
 
+from app.models.schemas import PredictionInput
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,23 +24,19 @@ def root():
 
 
 @app.post("/predict")
-def predict():
-    features = {
-        "sepal_length": 6.5,
-        "sepal_width": 3.0,
-        "petal_length": 5.5,
-        "petal_width": 1.8,
-    }
-
+def predict(data: PredictionInput):
     input_data = np.array([[
-        features["sepal_length"],
-        features["sepal_width"],
-        features["petal_length"],
-        features["petal_width"],
+        data.sepal_length,
+        data.sepal_width,
+        data.petal_length,
+        data.petal_width,
     ]])
 
     prediction = app.state.model.predict(input_data)
 
+    class_names = ["setosa", "versicolor", "virginica"]
+    predicted_class = class_names[prediction[0]]
+
     return {
-        "prediction": prediction[0].item()
+        "prediction": predicted_class
     }

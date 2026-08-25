@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import uuid
 
 import joblib
 import numpy as np
@@ -23,6 +24,16 @@ def root():
     return {"message": "ML API is alive"}
 
 
+@app.get("/health")
+def health():
+    model_loaded = hasattr(app.state, "model") and app.state.model is not None
+
+    return {
+        "status": "ok",
+        "model_loaded": model_loaded
+    }
+
+
 @app.post("/predict")
 def predict(data: PredictionInput):
     input_data = np.array([[
@@ -34,9 +45,16 @@ def predict(data: PredictionInput):
 
     prediction = app.state.model.predict(input_data)
 
+    probabilities = app.state.model.predict_proba(input_data)
+    confidence = float(np.max(probabilities))
+
     class_names = ["setosa", "versicolor", "virginica"]
     predicted_class = class_names[prediction[0]]
 
+    request_id = str(uuid.uuid4())
+
     return {
-        "prediction": predicted_class
+        "prediction": predicted_class,
+        "confidence": confidence,
+        "request_id": request_id
     }

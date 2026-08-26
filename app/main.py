@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-import logging
+import time
 import uuid
 
 import joblib
@@ -9,10 +9,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.models.schemas import PredictionInput
+from app.logging_config import setup_logging
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logging()
 
 
 class PredictionOutput(BaseModel):
@@ -28,13 +28,38 @@ class InvalidInputShapeError(Exception):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Loading ML model...")
+    logger.info("Loading ML model...")
     app.state.model = joblib.load("ml/saved_model/model.joblib")
-    print("ML model loaded successfully!")
+    logger.info("ML model loaded successfully!")
     yield
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    start_time = time.time()
+
+    response = await call_next(request)
+
+    duration = (time.time() - start_time) * 1000
+
+    logger.info(
+        "request_id=%s method=%s path=%s status=%s duration=%.2fms",
+        request_id,
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration
+    )
+
+    response.headers["X-Request-ID"] = request_id
+
+    return response
 
 
 @app.exception_handler(InvalidInputShapeError)
@@ -42,6 +67,11 @@ async def invalid_input_shape_handler(
     request: Request,
     exc: InvalidInputShapeError
 ):
+    logger.warning(
+        "request_id=%s Invalid input shape",
+        request.state.request_id
+    )
+
     return JSONResponse(
         status_code=400,
         content={"detail": "Invalid input shape"}
@@ -64,8 +94,8 @@ def health():
 
 
 @app.post("/predict", response_model=PredictionOutput)
-def predict(data: PredictionInput):
-    request_id = str(uuid.uuid4())
+def predict(data: PredictionInput, request: Request):
+    request_id = request.state.request_id
 
     input_data = np.array([[
         data.sepal_length,
@@ -86,6 +116,12 @@ def predict(data: PredictionInput):
         class_names = ["setosa", "versicolor", "virginica"]
         predicted_class = class_names[int(prediction[0])]
 
+        logger.info(
+            "request_id=%s Prediction successful: %s",
+            request_id,
+            predicted_class
+        )
+
         return {
             "prediction": predicted_class,
             "confidence": confidence,
@@ -95,7 +131,7 @@ def predict(data: PredictionInput):
 
     except Exception as e:
         logger.exception(
-            "Prediction failed for request %s: %s",
+            "request_id=%s Prediction failed: %s",
             request_id,
             e
         )

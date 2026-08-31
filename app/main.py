@@ -3,34 +3,26 @@ import time
 import uuid
 
 import joblib
-import numpy as np
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
-from app.models.schemas import PredictionInput
 from app.logging_config import setup_logging
+from app.exceptions import InvalidInputShapeError
+from app.routers.v1 import router as v1_router
 
 
 logger = setup_logging()
 
 
-class PredictionOutput(BaseModel):
-    prediction: str
-    confidence: float
-    model_version: str
-    request_id: str
-
-
-class InvalidInputShapeError(Exception):
-    pass
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Loading ML model...")
+
     app.state.model = joblib.load("ml/saved_model/model.joblib")
+    app.state.logger = logger
+
     logger.info("ML model loaded successfully!")
+
     yield
 
 
@@ -83,60 +75,4 @@ def root():
     return {"message": "ML API is alive"}
 
 
-@app.get("/health")
-def health():
-    model_loaded = hasattr(app.state, "model") and app.state.model is not None
-
-    return {
-        "status": "ok",
-        "model_loaded": model_loaded
-    }
-
-
-@app.post("/predict", response_model=PredictionOutput)
-def predict(data: PredictionInput, request: Request):
-    request_id = request.state.request_id
-
-    input_data = np.array([[
-        data.sepal_length,
-        data.sepal_width,
-        data.petal_length,
-        data.petal_width,
-    ]])
-
-    if input_data.shape != (1, 4):
-        raise InvalidInputShapeError()
-
-    try:
-        prediction = app.state.model.predict(input_data)
-
-        probabilities = app.state.model.predict_proba(input_data)
-        confidence = float(np.max(probabilities))
-
-        class_names = ["setosa", "versicolor", "virginica"]
-        predicted_class = class_names[int(prediction[0])]
-
-        logger.info(
-            "request_id=%s Prediction successful: %s",
-            request_id,
-            predicted_class
-        )
-
-        return {
-            "prediction": predicted_class,
-            "confidence": confidence,
-            "model_version": "1.0",
-            "request_id": request_id
-        }
-
-    except Exception as e:
-        logger.exception(
-            "request_id=%s Prediction failed: %s",
-            request_id,
-            e
-        )
-
-        raise HTTPException(
-            status_code=500,
-            detail="Prediction failed"
-        )
+app.include_router(v1_router)

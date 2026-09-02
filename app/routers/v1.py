@@ -1,9 +1,11 @@
+
 import json
 import time
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, Request
 
+from app.config import settings
 from app.models.schemas import (
     PredictionInput,
     PredictionOutput,
@@ -91,8 +93,21 @@ def predict_batch(
 
     batch_size = len(data.inputs)
 
+    # Enforce configurable maximum batch size
+    if batch_size > settings.MAX_BATCH_SIZE:
+        request.app.state.logger.warning(
+            "request_id=%s batch_size=%s exceeds max_batch_size=%s",
+            request_id,
+            batch_size,
+            settings.MAX_BATCH_SIZE
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Batch size cannot exceed {settings.MAX_BATCH_SIZE}"
+        )
+
     try:
-        # Create one NumPy array for the entire batch
         input_data = np.array([
             [
                 item.sepal_length,
@@ -106,17 +121,14 @@ def predict_batch(
         if input_data.shape != (batch_size, 4):
             raise InvalidInputShapeError()
 
-        # Predict the entire batch at once
         predictions = request.app.state.model.predict(input_data)
 
-        # Get probabilities for the entire batch at once
         probabilities = request.app.state.model.predict_proba(input_data)
 
         class_names = ["setosa", "versicolor", "virginica"]
 
         results = []
 
-        # Format the predictions after model inference
         for index, prediction in enumerate(predictions):
             predicted_class = class_names[int(prediction)]
             confidence = float(np.max(probabilities[index]))
@@ -191,3 +203,4 @@ def model_info(request: Request):
             status_code=500,
             detail="Model metadata unavailable"
         )
+

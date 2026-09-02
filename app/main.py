@@ -1,3 +1,4 @@
+
 from contextlib import asynccontextmanager
 import time
 import uuid
@@ -6,6 +7,7 @@ import joblib
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.config import settings
 from app.logging_config import setup_logging
 from app.exceptions import InvalidInputShapeError
 from app.routers.v1 import router as v1_router
@@ -18,7 +20,7 @@ logger = setup_logging()
 async def lifespan(app: FastAPI):
     logger.info("Loading ML model...")
 
-    app.state.model = joblib.load("ml/saved_model/model.joblib")
+    app.state.model = joblib.load(settings.MODEL_PATH)
     app.state.logger = logger
 
     logger.info("ML model loaded successfully!")
@@ -26,7 +28,10 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title=settings.API_TITLE,
+    lifespan=lifespan
+)
 
 
 @app.middleware("http")
@@ -76,3 +81,4 @@ def root():
 
 
 app.include_router(v1_router)
+

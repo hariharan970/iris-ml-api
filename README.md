@@ -8,7 +8,7 @@ This project will build a REST API that uses a machine learning model to classif
 
 ## Dataset
 
-The project uses the built-in Iris dataset provided by scikit-learn.
+The project uses the built-in Iris dataset provided by `scikit-learn`.
 
 The dataset contains four input features:
 
@@ -33,15 +33,23 @@ The goal is to predict the species of an Iris flower from its four measurements.
 
 ## API Contract
 
-The /predict endpoint accepts four numerical measurements of an Iris flower: sepal length, sepal width, petal length, and petal width. The API validates that all required values are provided and are valid numbers. After validation, the values are passed to the trained Logistic Regression model, which predicts whether the flower is Setosa, Versicolor, or Virginica. The API then returns the predicted species as a JSON response. Invalid or missing input will result in a validation error rather than a prediction.
+The `/predict` endpoint accepts four numerical measurements of an Iris flower: sepal length, sepal width, petal length, and petal width.
+
+The API validates that all required values are provided and are valid numbers.
+
+After validation, the values are passed to the trained Logistic Regression model, which predicts whether the flower is Setosa, Versicolor, or Virginica.
+
+The API then returns the predicted species as a JSON response.
+
+Invalid or missing input will result in a validation error rather than a prediction.
 
 ### Endpoint
 
-POST /predict
+`POST /predict`
 
 ### Example Input
 
-
+```json
 {
     "sepal_length": 5.1,
     "sepal_width": 3.5,
@@ -76,7 +84,15 @@ JSON Response
 Client
 Flow Explanation
 
-First, the client sends the four Iris flower measurements to the /predict endpoint. FastAPI receives the request and validates the input. If the input is valid, the measurements are passed to the trained Logistic Regression model. The model predicts the flower species. Finally, the API returns the prediction to the client in JSON format.
+First, the client sends the four Iris flower measurements to the /predict endpoint.
+
+FastAPI receives the request and validates the input.
+
+If the input is valid, the measurements are passed to the trained Logistic Regression model.
+
+The model predicts the flower species.
+
+Finally, the API returns the prediction to the client in JSON format.
 
 Project Scope
 
@@ -165,6 +181,7 @@ http://localhost:8000
 Interactive API documentation:
 
 http://localhost:8000/docs
+
 Start Without Rebuilding
 
 If the Docker image has already been built, start the API with:

@@ -82,6 +82,7 @@ JSON Response
   |
   ↓
 Client
+
 Flow Explanation
 
 First, the client sends the four Iris flower measurements to the /predict endpoint.

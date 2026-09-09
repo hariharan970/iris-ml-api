@@ -1,10 +1,10 @@
-
 from contextlib import asynccontextmanager
 import time
 import uuid
 
 import joblib
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
@@ -32,6 +32,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.API_TITLE,
     lifespan=lifespan
+)
+
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-API-Key"],
 )
 
 
@@ -83,4 +96,3 @@ def root():
 
 app.include_router(v1_router)
 app.include_router(v2_router)
-

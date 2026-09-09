@@ -1,9 +1,8 @@
-
 import json
 import time
 
 import numpy as np
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.config import settings
 from app.models.schemas import (
@@ -13,6 +12,7 @@ from app.models.schemas import (
     PredictionBatchOutput,
 )
 from app.exceptions import InvalidInputShapeError
+from app.security import verify_api_key
 
 
 router = APIRouter(prefix="/api/v1")
@@ -31,7 +31,11 @@ def health(request: Request):
     }
 
 
-@router.post("/predict", response_model=PredictionOutput)
+@router.post(
+    "/predict",
+    response_model=PredictionOutput,
+    dependencies=[Depends(verify_api_key)]
+)
 def predict(data: PredictionInput, request: Request):
     request_id = request.state.request_id
 
@@ -82,7 +86,8 @@ def predict(data: PredictionInput, request: Request):
 
 @router.post(
     "/predict-batch",
-    response_model=PredictionBatchOutput
+    response_model=PredictionBatchOutput,
+    dependencies=[Depends(verify_api_key)]
 )
 def predict_batch(
     data: PredictionBatchInput,
@@ -177,7 +182,10 @@ def predict_batch(
         )
 
 
-@router.get("/model-info")
+@router.get(
+    "/model-info",
+    dependencies=[Depends(verify_api_key)]
+)
 def model_info(request: Request):
     metadata_path = "ml/saved_model/model_metadata.json"
 
@@ -203,4 +211,3 @@ def model_info(request: Request):
             status_code=500,
             detail="Model metadata unavailable"
         )
-

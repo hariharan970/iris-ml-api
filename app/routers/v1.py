@@ -59,7 +59,9 @@ def predict(data: PredictionInput, request: Request):
         class_names = ["setosa", "versicolor", "virginica"]
         predicted_class = class_names[int(prediction[0])]
 
-        predictions_total.labels(predicted_class=predicted_class).inc()
+        predictions_total.labels(
+            predicted_class=predicted_class
+        ).inc()
 
         request.app.state.logger.info(
             "request_id=%s Prediction successful: %s",
@@ -140,7 +142,9 @@ def predict_batch(
             predicted_class = class_names[int(prediction)]
             confidence = float(np.max(probabilities[index]))
 
-            predictions_total.labels(predicted_class=predicted_class).inc()
+            predictions_total.labels(
+                predicted_class=predicted_class
+            ).inc()
 
             results.append(
                 PredictionOutput(

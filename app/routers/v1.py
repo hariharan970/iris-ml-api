@@ -13,6 +13,7 @@ from app.models.schemas import (
 )
 from app.exceptions import InvalidInputShapeError
 from app.security import verify_api_key
+from app.metrics import predictions_total
 
 
 router = APIRouter(prefix="/api/v1")
@@ -58,6 +59,8 @@ def predict(data: PredictionInput, request: Request):
         class_names = ["setosa", "versicolor", "virginica"]
         predicted_class = class_names[int(prediction[0])]
 
+        predictions_total.labels(predicted_class=predicted_class).inc()
+
         request.app.state.logger.info(
             "request_id=%s Prediction successful: %s",
             request_id,
@@ -98,7 +101,6 @@ def predict_batch(
 
     batch_size = len(data.inputs)
 
-    # Enforce configurable maximum batch size
     if batch_size > settings.MAX_BATCH_SIZE:
         request.app.state.logger.warning(
             "request_id=%s batch_size=%s exceeds max_batch_size=%s",
@@ -137,6 +139,8 @@ def predict_batch(
         for index, prediction in enumerate(predictions):
             predicted_class = class_names[int(prediction)]
             confidence = float(np.max(probabilities[index]))
+
+            predictions_total.labels(predicted_class=predicted_class).inc()
 
             results.append(
                 PredictionOutput(

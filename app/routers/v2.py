@@ -1,14 +1,19 @@
+
 import numpy as np
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.models.schemas import PredictionInput
 from app.exceptions import InvalidInputShapeError
+from app.security import verify_api_key
 
 
 router = APIRouter(prefix="/api/v2")
 
 
-@router.post("/predict")
+@router.post(
+    "/predict",
+    dependencies=[Depends(verify_api_key)]
+)
 def predict_v2(data: PredictionInput, request: Request):
     request_id = request.state.request_id
 

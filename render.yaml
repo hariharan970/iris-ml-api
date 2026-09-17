@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: iris-ml-api
+    runtime: docker
+    plan: free
+    envVars:
+      - key: API_KEY
+        sync: false
+      - key: MODEL_PATH
+        value: ml/saved_model/model.joblib
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MAX_BATCH_SIZE
+        value: "100"
+      - key: API_TITLE
+        value: Iris ML API

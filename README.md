@@ -1,185 +1,334 @@
 # Iris ML API
 
-Machine Learning REST API for Iris Flower Classification
+A Dockerized FastAPI REST API for Iris flower classification using a trained scikit-learn Logistic Regression model.
 
 ## Project Overview
 
-This project will build a REST API that uses a machine learning model to classify Iris flowers based on their physical measurements. The main purpose of the project is to learn how to integrate a machine learning model into a Python API and expose its predictions through a REST endpoint.
+The service accepts four Iris flower measurements and predicts one of three classes: `setosa`, `versicolor`, or `virginica`.
 
-## Dataset
+The project progressed from model training and API validation to versioned endpoints, structured logging, configuration management, automated testing, Docker/Compose, API-key security, Prometheus metrics, and load testing.
 
-The project uses the built-in Iris dataset provided by `scikit-learn`.
+## Features
 
-The dataset contains four input features:
+- Logistic Regression model trained on the scikit-learn Iris dataset
+- FastAPI REST API with Pydantic validation
+- Versioned prediction endpoints (`v1` and `v2`)
+- Batch prediction with a configurable maximum batch size
+- Model metadata endpoint
+- API-key protection using `X-API-Key`
+- Request IDs and structured request logging
+- Prometheus monitoring at `/metrics`
+- Docker and Docker Compose support
+- Automated pytest suite
+- GitHub Actions CI on pushes to `main` and pull requests
 
-- Sepal length
-- Sepal width
-- Petal length
-- Petal width
+## Architecture
 
-The model will classify each flower into one of three species:
+```text
+                         +----------------------+
+                         |      Client / curl   |
+                         +----------+-----------+
+                                    |
+                                    | HTTP request
+                                    v
+                         +----------------------+
+                         |   Docker Container    |
+                         |      FastAPI app     |
+                         +----------+-----------+
+                                    |
+                     +--------------+--------------+
+                     |                             |
+                     v                             v
+             +---------------+              +---------------+
+             | API Key Check |              | Request Logger|
+             +-------+-------+              +-------+-------+
+                     |                              |
+                     v                              v
+             +---------------+              +---------------+
+             | Pydantic      |              | Request ID    |
+             | Validation    |              | + timing      |
+             +-------+-------+              +---------------+
+                     |
+                     v
+             +-----------------------------+
+             | Versioned API Router        |
+             | v1 / v2 / batch / metadata  |
+             +--------------+--------------+
+                            |
+                            v
+             +-----------------------------+
+             | Loaded scikit-learn Model   |
+             | Logistic Regression         |
+             +--------------+--------------+
+                            |
+                            v
+                   +------------------+
+                   | JSON prediction  |
+                   +------------------+
 
-- Setosa
-- Versicolor
-- Virginica
-
-## Machine Learning Problem
-
-This is a **supervised classification problem**.
-
-The selected machine learning algorithm is **Logistic Regression**.
-
-The goal is to predict the species of an Iris flower from its four measurements.
-
-## API Contract
-
-The `/predict` endpoint accepts four numerical measurements of an Iris flower: sepal length, sepal width, petal length, and petal width. The API validates that all required values are provided and are valid numbers. After validation, the values are passed to the trained Logistic Regression model, which predicts whether the flower is Setosa, Versicolor, or Virginica. The API then returns the predicted species as a JSON response. Invalid or missing input will result in a validation error rather than a prediction.
-
-### Endpoint
-
-`POST /predict`
-
-### Example Input
-
-```json
-{
-    "sepal_length": 5.1,
-    "sepal_width": 3.5,
-    "petal_length": 1.4,
-    "petal_width": 0.2
-}
-```
-
-### Example Output
-
-```json
-{
-    "prediction": "setosa"
-}
+        Prometheus instrumentation -> /metrics
+        Logs -> console + logs/app.log
 ```
 
 ## Request Flow
 
+1. The client sends an HTTP request to the FastAPI service.
+2. The request middleware creates a request ID and records timing.
+3. Protected endpoints validate the `X-API-Key` header.
+4. Pydantic validates the request body and rejects invalid or missing fields with HTTP 422.
+5. The selected versioned router converts the measurements to a NumPy array.
+6. The startup lifespan loads the persisted Logistic Regression model into application state.
+7. The model returns the predicted class and probabilities.
+8. The API returns the response as JSON and logs the result.
+9. Prometheus instrumentation records HTTP metrics, while the custom `iris_predictions_total` counter tracks successful predictions by class.
+
+## Dataset and Model
+
+The project uses the built-in Iris dataset from scikit-learn.
+
+Inputs:
+
+- `sepal_length`
+- `sepal_width`
+- `petal_length`
+- `petal_width`
+
+Classes:
+
+- `setosa`
+- `versicolor`
+- `virginica`
+
+Algorithm: **Logistic Regression**
+
+The trained model is stored at:
+
 ```text
-Client
-  |
-  | POST /predict
-  | Flower measurements
-  ↓
-FastAPI Endpoint
-  |
-  ↓
-Input Validation
-  |
-  ↓
-Logistic Regression Model
-  |
-  ↓
-Prediction
-  |
-  ↓
-JSON Response
-  |
-  ↓
-Client
+ml/saved_model/model.joblib
 ```
 
-### Flow Explanation
+## API Endpoints
 
-First, the client sends the four Iris flower measurements to the `/predict` endpoint. FastAPI receives the request and validates the input. If the input is valid, the measurements are passed to the trained Logistic Regression model. The model predicts the flower species. Finally, the API returns the prediction to the client in JSON format.
+### GET `/`
 
-## Project Scope
+Basic service response.
 
-The initial version will focus on one prediction endpoint. The main goal is to understand API development, input validation, machine learning model integration, testing, and deployment.
+```bash
+curl http://localhost:8000/
+```
 
-Complex machine learning techniques are intentionally avoided because the main focus of this project is backend and ML API engineering.
+Example response:
 
-## Planned Development
+```json
+{"message":"ML API is alive"}
+```
 
-1. Set up the Python environment.
-2. Create the project folder structure.
-3. Load and train the Iris classification model.
-4. Save the trained model.
-5. Build the FastAPI application.
-6. Add request validation.
-7. Implement the `/predict` endpoint.
-8. Test the API.
-9. Containerize the application.
-10. Deploy the API.
+### GET `/api/v1/health`
 
-## Technology Stack
+Returns service and model-loading status.
 
-- Python
-- FastAPI
-- Scikit-learn
-- Pydantic
-- Uvicorn
-- Git
-- GitHub
-- Docker
-- Docker Compose
+```bash
+curl http://localhost:8000/api/v1/health
+```
 
-## Day 1 Goal
+Example response:
 
-The dataset, machine learning problem, API contract, and initial architecture have been defined before implementation begins.
+```json
+{
+  "status": "ok",
+  "model_loaded": true
+}
+```
+
+### POST `/api/v1/predict`
+
+Requires `X-API-Key`.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/predict \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-local-development-key" \
+  -d '{
+    "sepal_length": 5.1,
+    "sepal_width": 3.5,
+    "petal_length": 1.4,
+    "petal_width": 0.2
+  }'
+```
+
+The response includes the prediction, confidence, model version, and request ID.
+
+### POST `/api/v1/predict-batch`
+
+Requires `X-API-Key`. The request body contains an `inputs` array. The configured maximum is 100 items.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/predict-batch \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-local-development-key" \
+  -d '{
+    "inputs": [
+      {
+        "sepal_length": 5.1,
+        "sepal_width": 3.5,
+        "petal_length": 1.4,
+        "petal_width": 0.2
+      },
+      {
+        "sepal_length": 6.2,
+        "sepal_width": 3.4,
+        "petal_length": 5.4,
+        "petal_width": 2.3
+      }
+    ]
+  }'
+```
+
+### GET `/api/v1/model-info`
+
+Requires `X-API-Key` and returns the stored model metadata JSON.
+
+```bash
+curl http://localhost:8000/api/v1/model-info \
+  -H "X-API-Key: your-local-development-key"
+```
+
+### POST `/api/v2/predict`
+
+Requires `X-API-Key`. Version 2 returns class probabilities in addition to the predicted class.
+
+```bash
+curl -X POST http://localhost:8000/api/v2/predict \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-local-development-key" \
+  -d '{
+    "sepal_length": 5.1,
+    "sepal_width": 3.5,
+    "petal_length": 1.4,
+    "petal_width": 0.2
+  }'
+```
+
+### GET `/metrics`
+
+Prometheus metrics endpoint.
+
+```bash
+curl http://localhost:8000/metrics
+```
+
+Look for the custom metric:
+
+```text
+iris_predictions_total
+```
+
+### API Documentation
+
+Swagger UI:
+
+```text
+http://localhost:8000/docs
+```
+
+OpenAPI JSON:
+
+```text
+http://localhost:8000/openapi.json
+```
+
+## Validation and Security
+
+Prediction fields are required numeric values between greater than 0 and at most 10. Extra fields are rejected.
+
+Protected endpoints require:
+
+```text
+X-API-Key: <API_KEY>
+```
+
+Missing or incorrect keys return HTTP 401.
+
+The application reads configuration from environment variables using `pydantic-settings`. The secret API key must not be committed to Git.
 
 ## Environment Variables
 
-The application uses environment variables for configuration.
-
-The `.env` file contains:
+Create `.env` from `.env.example`.
 
 ```env
+API_KEY=your-local-development-key
 MODEL_PATH=ml/saved_model/model.joblib
 LOG_LEVEL=INFO
 MAX_BATCH_SIZE=100
 API_TITLE=Iris ML API
 ```
 
-The `.env` file should not be committed to GitHub.
-
-Use `.env.example` as a template for creating the local `.env` file.
+`.env` is ignored by Git.
 
 ## Project Structure
 
 ```text
 iris-ml-api/
 ├── app/
+│   ├── main.py
+│   ├── config.py
+│   ├── exceptions.py
+│   ├── logging_config.py
+│   ├── metrics.py
+│   ├── security.py
+│   ├── models/
+│   │   └── schemas.py
+│   └── routers/
+│       ├── v1.py
+│       └── v2.py
 ├── ml/
 │   └── saved_model/
-│       └── model.joblib
+│       ├── model.joblib
+│       └── model_metadata.json
 ├── tests/
+│   ├── conftest.py
+│   ├── test_batch.py
+│   ├── test_health.py
+│   ├── test_model_info.py
+│   ├── test_predict.py
+│   ├── test_security.py
+│   └── test_v2.py
+├── .github/
+│   └── workflows/
+│       └── tests.yml
+├── .env.example
+├── .gitignore
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
-├── .env
-├── .env.example
-├── .gitignore
 └── README.md
 ```
 
-## How to Run the Project
+## Local Setup
 
 ### Prerequisites
-
-Make sure you have:
 
 - Docker Desktop
 - Docker Compose
 
-### Setup
+### 1. Clone
 
-Create the `.env` file from `.env.example`.
+```bash
+git clone https://github.com/hariharan970/iris-ml-api.git
+cd iris-ml-api
+```
 
-On Windows PowerShell:
+### 2. Create environment file
+
+PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-### Start the API
+Edit `.env` and set a local API key.
 
-Build the Docker image and start the API:
+### 3. Start with Docker Compose
 
 ```bash
 docker compose up --build
@@ -187,94 +336,138 @@ docker compose up --build
 
 The API will be available at:
 
-http://localhost:8000
-
-Interactive API documentation:
-
-http://localhost:8000/docs
-
-### Start Without Rebuilding
-
-If the Docker image has already been built, start the API with:
-
-```bash
-docker compose up
-```
-
-This starts the existing Docker image without rebuilding it.
-
-### Stop the API
-
-Press:
-
 ```text
-Ctrl + C
+http://localhost:8000
 ```
 
-Or run:
+### 4. Stop the service
 
 ```bash
 docker compose down
 ```
 
-## Docker Compose
-
-Docker Compose is used to manage the API container.
-
-The API can be started with a single command:
-
-```bash
-docker compose up
-```
-
-To build the image and start the API:
-
-```bash
-docker compose up --build
-```
-
-Environment variables are loaded from the `.env` file instead of being hardcoded in the Compose configuration.
-
-## ML Model Volume
-
-The `ml/saved_model` directory is mounted into the Docker container.
-
-This allows the trained model to be replaced without rebuilding the entire Docker image.
-
-```text
-./ml/saved_model
-        ↓
-/app/ml/saved_model
-```
-
-The model directory is mounted as read-only inside the container.
+The Compose configuration mounts `ml/saved_model` read-only into the container, so the persisted model can be reused without changing the application image.
 
 ## Testing
 
-The API can be tested through the interactive Swagger documentation:
+Run the full pytest suite locally:
 
-http://localhost:8000/docs
+```bash
+pytest -q
+```
 
-Send a request to the prediction endpoint using valid Iris flower measurements and verify that the API returns the predicted species.
+The project includes tests for health checks, predictions, validation, batch requests, model metadata, API-key security, and v2 responses.
 
-## Development Progress
+The repository also includes a GitHub Actions workflow that runs the test suite automatically on pushes to `main` and pull requests targeting `main`.
 
-1. Set up the Python environment.
-2. Create the project folder structure.
-3. Load and train the Iris classification model.
-4. Save the trained model.
-5. Build the FastAPI application.
-6. Add request validation.
-7. Implement the `/predict` endpoint.
-8. Test the API.
-9. Introduce API versioning.
-10. Add configuration management.
-11. Containerize the API with Docker.
-12. Orchestrate the API using Docker Compose.
-13. Continue improving security and robustness.
+## Task 19 Integration and Load Testing
 
-## Current Status
+Before the final milestone, the API was exercised with valid and invalid prediction requests and load tests using the secured API-key header.
 
-The Iris ML API has been containerized using Docker and can be started using Docker Compose.
+Observed successful local load-test runs from Task 19 included:
 
-The API uses environment variables for configuration and mounts the ML model directory as a volume so that the model can be replaced without rebuilding the entire Docker image.
+- 50 requests: 50 successful, 0 failed
+- 200 requests: 200 successful, 0 failed
+
+These figures are local test observations, not a cloud performance guarantee.
+
+## Deployment on Render
+
+This project is designed to deploy from the existing Dockerfile. Render supports Docker web services and can build the image directly from the repository. citeturn803146search0turn803146search1
+
+### Render setup
+
+1. Open the Render dashboard.
+2. Create **New → Web Service**.
+3. Connect the GitHub repository `hariharan970/iris-ml-api`.
+4. Set the runtime/language to **Docker**.
+5. Use the repository's root `Dockerfile`.
+6. Add the environment variables from `.env.example`, especially a real secret value for `API_KEY`.
+7. Deploy the service.
+
+The Dockerfile listens on Render's runtime `PORT` value and falls back to port `8000` for local Docker runs.
+
+After deployment, validate these paths on the generated `https://<service-name>.onrender.com` URL:
+
+```text
+/docs
+/api/v1/health
+/api/v1/predict
+/api/v2/predict
+/metrics
+```
+
+Remember to send the API key header for protected endpoints.
+
+Render's current documentation notes that free web services can spin down after 15 minutes of inactivity, so the first request after idle time may take longer while the service starts again. citeturn803146search4
+
+## Independent Extension
+
+I chose **GitHub Actions automated testing** as the independent extension.
+
+The workflow is:
+
+```text
+.github/workflows/tests.yml
+```
+
+It runs the existing pytest suite automatically on:
+
+- Pushes to `main`
+- Pull requests targeting `main`
+
+This adds a basic CI safety net so regressions can be detected automatically instead of depending only on local test execution.
+
+## What I Learned
+
+I learned how the pieces of a machine-learning service fit together instead of treating the model and API as separate tasks.
+
+The main things I can now explain are:
+
+- how a persisted scikit-learn model is loaded during FastAPI startup and reused for requests;
+- how Pydantic validation protects the API from malformed input;
+- why API versioning lets response contracts evolve without breaking the older endpoint;
+- how Docker packages the application and Docker Compose makes local reproduction simple;
+- how environment-based configuration keeps secrets and deployment settings outside source code;
+- how request IDs and structured logs make debugging easier;
+- how API-key checks provide a basic layer of endpoint protection;
+- how Prometheus metrics expose operational information separately from normal API responses;
+- how automated tests and load tests give evidence that the service works before deployment;
+- and how GitHub Actions can run regression tests automatically after code changes.
+
+## Self-Assessment
+
+### 1. Can I explain the end-to-end request flow without looking at the code?
+
+**Yes, with one area I would still review before an interview:** the exact interaction between FastAPI middleware, dependency-based API-key validation, request routing, and the Prometheus instrumentation.
+
+### 2. Could a new teammate get the project running from the README?
+
+**Yes for the local Docker setup.** The README gives the repository structure, environment setup, Compose command, endpoints, API-key requirement, and test command. Cloud deployment still requires creating the external Render service and entering the secret environment variable in Render.
+
+### 3. What am I least confident explaining in an interview?
+
+The part I would re-read is **Prometheus monitoring and the custom `iris_predictions_total` metric**, especially the difference between application metrics and request logs, and how Prometheus scrapes the `/metrics` endpoint.
+
+## Completion Checklist
+
+- [x] FastAPI service implemented
+- [x] Model persisted with joblib
+- [x] Input validation
+- [x] API versioning
+- [x] Batch prediction
+- [x] Configuration management
+- [x] Structured logging and request IDs
+- [x] API-key security
+- [x] Prometheus metrics
+- [x] Dockerfile
+- [x] Docker Compose
+- [x] Automated pytest suite
+- [x] Task 19 integration/load testing
+- [x] GitHub Actions independent extension
+- [x] Complete README
+- [ ] Public Render URL verified end-to-end
+
+## Repository
+
+https://github.com/hariharan970/iris-ml-api

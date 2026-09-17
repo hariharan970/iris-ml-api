@@ -6,14 +6,14 @@ A Dockerized FastAPI REST API for Iris flower classification using a trained sci
 
 The service accepts four Iris flower measurements and predicts one of three classes: `setosa`, `versicolor`, or `virginica`.
 
-The project progressed from model training and API validation to versioned endpoints, structured logging, configuration management, automated testing, Docker/Compose, API-key security, Prometheus metrics, and load testing.
+The project progressed from model training and API validation to versioned endpoints, structured logging, configuration management, automated testing, Docker/Compose, API-key security, Prometheus metrics, load testing, and cloud deployment.
 
 ## Features
 
 - Logistic Regression model trained on the scikit-learn Iris dataset
 - FastAPI REST API with Pydantic validation
 - Versioned prediction endpoints (`v1` and `v2`)
-- Batch prediction with a configurable maximum batch size
+- Batch prediction with configurable maximum batch size
 - Model metadata endpoint
 - API-key protection using `X-API-Key`
 - Request IDs and structured request logging
@@ -21,6 +21,7 @@ The project progressed from model training and API validation to versioned endpo
 - Docker and Docker Compose support
 - Automated pytest suite
 - GitHub Actions CI on pushes to `main` and pull requests
+- Public deployment on Render
 
 ## Architecture
 
@@ -73,38 +74,47 @@ The project progressed from model training and API validation to versioned endpo
 ## Request Flow
 
 1. The client sends an HTTP request to the FastAPI service.
-2. The request middleware creates a request ID and records timing.
+2. Request middleware creates a unique request ID and records request timing.
 3. Protected endpoints validate the `X-API-Key` header.
-4. Pydantic validates the request body and rejects invalid or missing fields with HTTP 422.
-5. The selected versioned router converts the measurements to a NumPy array.
-6. The startup lifespan loads the persisted Logistic Regression model into application state.
+4. Pydantic validates the request body.
+5. The selected API router processes the request.
+6. The persisted Logistic Regression model is loaded during application startup.
 7. The model returns the predicted class and probabilities.
-8. The API returns the response as JSON and logs the result.
-9. Prometheus instrumentation records HTTP metrics, while the custom `iris_predictions_total` counter tracks successful predictions by class.
+8. The API returns the prediction as a JSON response.
+9. Prometheus instrumentation records HTTP metrics.
+10. The custom `iris_predictions_total` counter tracks successful predictions by class.
 
 ## Dataset and Model
 
 The project uses the built-in Iris dataset from scikit-learn.
 
-Inputs:
+### Input Features
 
 - `sepal_length`
 - `sepal_width`
 - `petal_length`
 - `petal_width`
 
-Classes:
+### Output Classes
 
 - `setosa`
 - `versicolor`
 - `virginica`
 
-Algorithm: **Logistic Regression**
+### Algorithm
+
+**Logistic Regression**
 
 The trained model is stored at:
 
 ```text
 ml/saved_model/model.joblib
+```
+
+Model metadata is stored at:
+
+```text
+ml/saved_model/model_metadata.json
 ```
 
 ## API Endpoints
@@ -113,8 +123,16 @@ ml/saved_model/model.joblib
 
 Basic service response.
 
+Local:
+
 ```bash
 curl http://localhost:8000/
+```
+
+Public:
+
+```text
+https://iris-ml-api-ms1j.onrender.com/
 ```
 
 Example response:
@@ -131,13 +149,16 @@ Returns service and model-loading status.
 curl http://localhost:8000/api/v1/health
 ```
 
+Public:
+
+```text
+https://iris-ml-api-ms1j.onrender.com/api/v1/health
+```
+
 Example response:
 
 ```json
-{
-  "status": "ok",
-  "model_loaded": true
-}
+{"status":"ok","model_loaded":true}
 ```
 
 ### POST `/api/v1/predict`
@@ -148,49 +169,46 @@ Requires `X-API-Key`.
 curl -X POST http://localhost:8000/api/v1/predict \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-local-development-key" \
-  -d '{
-    "sepal_length": 5.1,
-    "sepal_width": 3.5,
-    "petal_length": 1.4,
-    "petal_width": 0.2
-  }'
+  -d '{"sepal_length":5.1,"sepal_width":3.5,"petal_length":1.4,"petal_width":0.2}'
 ```
 
-The response includes the prediction, confidence, model version, and request ID.
+PowerShell public test:
+
+```powershell
+$body = '{"sepal_length":5.1,"sepal_width":3.5,"petal_length":1.4,"petal_width":0.2}'
+Invoke-RestMethod -Uri "https://iris-ml-api-ms1j.onrender.com/api/v1/predict" -Method Post -Headers @{"X-API-Key"="YOUR_RENDER_API_KEY"} -ContentType "application/json" -Body $body
+```
+
+Example response:
+
+```json
+{"prediction":"setosa","confidence":0.9815737196632449,"model_version":"1.0","request_id":"..."}
+```
 
 ### POST `/api/v1/predict-batch`
 
-Requires `X-API-Key`. The request body contains an `inputs` array. The configured maximum is 100 items.
+Requires `X-API-Key`. Maximum batch size is 100.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/predict-batch \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-local-development-key" \
-  -d '{
-    "inputs": [
-      {
-        "sepal_length": 5.1,
-        "sepal_width": 3.5,
-        "petal_length": 1.4,
-        "petal_width": 0.2
-      },
-      {
-        "sepal_length": 6.2,
-        "sepal_width": 3.4,
-        "petal_length": 5.4,
-        "petal_width": 2.3
-      }
-    ]
-  }'
+  -d '{"inputs":[{"sepal_length":5.1,"sepal_width":3.5,"petal_length":1.4,"petal_width":0.2},{"sepal_length":6.2,"sepal_width":3.4,"petal_length":5.4,"petal_width":2.3}]}'
 ```
 
 ### GET `/api/v1/model-info`
 
-Requires `X-API-Key` and returns the stored model metadata JSON.
+Requires `X-API-Key`.
 
 ```bash
 curl http://localhost:8000/api/v1/model-info \
   -H "X-API-Key: your-local-development-key"
+```
+
+Example response:
+
+```json
+{"model_type":"LogisticRegression","version":"1.0","training_date":"2026-09-01","expected_features":["sepal_length","sepal_width","petal_length","petal_width"]}
 ```
 
 ### POST `/api/v2/predict`
@@ -201,12 +219,13 @@ Requires `X-API-Key`. Version 2 returns class probabilities in addition to the p
 curl -X POST http://localhost:8000/api/v2/predict \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-local-development-key" \
-  -d '{
-    "sepal_length": 5.1,
-    "sepal_width": 3.5,
-    "petal_length": 1.4,
-    "petal_width": 0.2
-  }'
+  -d '{"sepal_length":5.1,"sepal_width":3.5,"petal_length":1.4,"petal_width":0.2}'
+```
+
+Example response:
+
+```json
+{"prediction":"setosa","probabilities":{"setosa":0.9815737196632449,"versicolor":0.01842626583422591,"virginica":1.4502529259020883e-08},"model_version":"2.0","request_id":"..."}
 ```
 
 ### GET `/metrics`
@@ -217,18 +236,25 @@ Prometheus metrics endpoint.
 curl http://localhost:8000/metrics
 ```
 
-Look for the custom metric:
+Public:
+
+```text
+https://iris-ml-api-ms1j.onrender.com/metrics
+```
+
+Look for:
 
 ```text
 iris_predictions_total
 ```
 
-### API Documentation
+## API Documentation
 
 Swagger UI:
 
 ```text
-http://localhost:8000/docs
+Local:  http://localhost:8000/docs
+Public: https://iris-ml-api-ms1j.onrender.com/docs
 ```
 
 OpenAPI JSON:
@@ -239,7 +265,7 @@ http://localhost:8000/openapi.json
 
 ## Validation and Security
 
-Prediction fields are required numeric values between greater than 0 and at most 10. Extra fields are rejected.
+Prediction fields are required numeric values greater than `0` and at most `10`. Extra fields are rejected.
 
 Protected endpoints require:
 
@@ -247,13 +273,13 @@ Protected endpoints require:
 X-API-Key: <API_KEY>
 ```
 
-Missing or incorrect keys return HTTP 401.
+Missing or incorrect API keys return HTTP `401`. Invalid request bodies return HTTP `422`.
 
-The application reads configuration from environment variables using `pydantic-settings`. The secret API key must not be committed to Git.
+The application reads configuration from environment variables using `pydantic-settings`. The API key must not be committed to Git.
 
 ## Environment Variables
 
-Create `.env` from `.env.example`.
+Create `.env` from `.env.example`:
 
 ```env
 API_KEY=your-local-development-key
@@ -263,7 +289,7 @@ MAX_BATCH_SIZE=100
 API_TITLE=Iris ML API
 ```
 
-`.env` is ignored by Git.
+`.env` is ignored by Git. For Render, configure `API_KEY` through Render environment variables.
 
 ## Project Structure
 
@@ -310,15 +336,16 @@ iris-ml-api/
 
 - Docker Desktop
 - Docker Compose
+- Git
 
-### 1. Clone
+### Clone
 
 ```bash
 git clone https://github.com/hariharan970/iris-ml-api.git
 cd iris-ml-api
 ```
 
-### 2. Create environment file
+### Create environment file
 
 PowerShell:
 
@@ -328,7 +355,7 @@ Copy-Item .env.example .env
 
 Edit `.env` and set a local API key.
 
-### 3. Start with Docker Compose
+### Start with Docker Compose
 
 ```bash
 docker compose up --build
@@ -340,114 +367,130 @@ The API will be available at:
 http://localhost:8000
 ```
 
-### 4. Stop the service
+### Stop the service
 
 ```bash
 docker compose down
 ```
 
-The Compose configuration mounts `ml/saved_model` read-only into the container, so the persisted model can be reused without changing the application image.
-
 ## Testing
 
-Run the full pytest suite locally:
+Run the full pytest suite:
 
 ```bash
 pytest -q
 ```
 
-The project includes tests for health checks, predictions, validation, batch requests, model metadata, API-key security, and v2 responses.
+Final local test result:
 
-The repository also includes a GitHub Actions workflow that runs the test suite automatically on pushes to `main` and pull requests targeting `main`.
+```text
+13 passed, 1 warning
+```
+
+The test suite covers health checks, predictions, validation, batch requests, model metadata, API-key security, and v2 responses.
+
+GitHub Actions also runs the test suite automatically on pushes to `main` and pull requests targeting `main`.
 
 ## Task 19 Integration and Load Testing
 
-Before the final milestone, the API was exercised with valid and invalid prediction requests and load tests using the secured API-key header.
+Successful local load-test results included:
 
-Observed successful local load-test runs from Task 19 included:
+### 50 Requests
 
-- 50 requests: 50 successful, 0 failed
-- 200 requests: 200 successful, 0 failed
+```text
+Successful requests: 50
+Failed requests: 0
+Total test time: 0.291 seconds
+Average response: 0.217 seconds
+Max response: 0.263 seconds
+Min response: 0.155 seconds
+```
 
-These figures are local test observations, not a cloud performance guarantee.
+### 200 Requests
+
+```text
+Successful requests: 200
+Failed requests: 0
+Total test time: 1.536 seconds
+Average response: 1.059 seconds
+Max response: 1.303 seconds
+Min response: 0.560 seconds
+```
+
+These are local test observations and are not a cloud performance guarantee.
 
 ## Deployment on Render
 
-This project is designed to deploy from the existing Dockerfile. Render supports Docker web services and can build the image directly from the repository. citeturn803146search0turn803146search1
+The API is deployed as a Docker Web Service on Render.
 
-### Render setup
-
-1. Open the Render dashboard.
-2. Create **New → Web Service**.
-3. Connect the GitHub repository `hariharan970/iris-ml-api`.
-4. Set the runtime/language to **Docker**.
-5. Use the repository's root `Dockerfile`.
-6. Add the environment variables from `.env.example`, especially a real secret value for `API_KEY`.
-7. Deploy the service.
-
-The Dockerfile listens on Render's runtime `PORT` value and falls back to port `8000` for local Docker runs.
-
-After deployment, validate these paths on the generated `https://<service-name>.onrender.com` URL:
+### Public URL
 
 ```text
-/docs
-/api/v1/health
-/api/v1/predict
-/api/v2/predict
-/metrics
+https://iris-ml-api-ms1j.onrender.com
 ```
 
-Remember to send the API key header for protected endpoints.
+### Verified Public Endpoints
 
-Render's current documentation notes that free web services can spin down after 15 minutes of inactivity, so the first request after idle time may take longer while the service starts again. citeturn803146search4
+```text
+https://iris-ml-api-ms1j.onrender.com/api/v1/health
+https://iris-ml-api-ms1j.onrender.com/api/v1/predict
+https://iris-ml-api-ms1j.onrender.com/api/v2/predict
+https://iris-ml-api-ms1j.onrender.com/api/v1/model-info
+https://iris-ml-api-ms1j.onrender.com/metrics
+https://iris-ml-api-ms1j.onrender.com/docs
+```
+
+The deployed service successfully loaded the persisted Logistic Regression model, accepted authenticated predictions, returned v1 and v2 responses, exposed model metadata, and served Prometheus metrics.
+
+### Render Configuration
+
+```text
+Repository: hariharan970/iris-ml-api
+Branch: main
+Runtime: Docker
+```
+
+The API key is configured as a Render environment variable and is not stored in the Git repository.
 
 ## Independent Extension
 
-I chose **GitHub Actions automated testing** as the independent extension.
+### GitHub Actions Automated Testing
 
-The workflow is:
+The independently chosen extension is **GitHub Actions CI**.
+
+Workflow:
 
 ```text
 .github/workflows/tests.yml
 ```
 
-It runs the existing pytest suite automatically on:
+It runs automatically on:
 
 - Pushes to `main`
 - Pull requests targeting `main`
 
-This adds a basic CI safety net so regressions can be detected automatically instead of depending only on local test execution.
+The workflow checks out the repository, sets up Python 3.11, installs dependencies, and runs `pytest -q`.
 
 ## What I Learned
 
-I learned how the pieces of a machine-learning service fit together instead of treating the model and API as separate tasks.
+This project helped me understand how the different parts of a machine-learning service work together.
 
-The main things I can now explain are:
+The main concepts I learned include:
 
-- how a persisted scikit-learn model is loaded during FastAPI startup and reused for requests;
-- how Pydantic validation protects the API from malformed input;
-- why API versioning lets response contracts evolve without breaking the older endpoint;
-- how Docker packages the application and Docker Compose makes local reproduction simple;
-- how environment-based configuration keeps secrets and deployment settings outside source code;
-- how request IDs and structured logs make debugging easier;
-- how API-key checks provide a basic layer of endpoint protection;
-- how Prometheus metrics expose operational information separately from normal API responses;
-- how automated tests and load tests give evidence that the service works before deployment;
-- and how GitHub Actions can run regression tests automatically after code changes.
-
-## Self-Assessment
-
-### 1. Can I explain the end-to-end request flow without looking at the code?
-
-**Yes, with one area I would still review before an interview:** the exact interaction between FastAPI middleware, dependency-based API-key validation, request routing, and the Prometheus instrumentation.
-
-### 2. Could a new teammate get the project running from the README?
-
-**Yes for the local Docker setup.** The README gives the repository structure, environment setup, Compose command, endpoints, API-key requirement, and test command. Cloud deployment still requires creating the external Render service and entering the secret environment variable in Render.
-
-### 3. What am I least confident explaining in an interview?
-
-The part I would re-read is **Prometheus monitoring and the custom `iris_predictions_total` metric**, especially the difference between application metrics and request logs, and how Prometheus scrapes the `/metrics` endpoint.
+- How to train and persist a scikit-learn machine-learning model.
+- How to load a persisted model during FastAPI application startup.
+- How Pydantic validation protects an API from invalid input.
+- How API versioning allows response contracts to evolve.
+- How batch prediction endpoints process multiple inputs.
+- How environment-based configuration separates deployment settings and secrets from source code.
+- How API-key authentication provides a basic layer of endpoint protection.
+- How request IDs and structured logging help with debugging and request tracing.
+- How Docker packages the application and its dependencies.
+- How Docker Compose makes the application reproducible locally.
+- How Prometheus metrics provide operational information about the API.
+- How integration and load testing provide evidence that the service works under multiple requests.
+- How GitHub Actions can automatically run tests after code changes.
+- How to deploy a Dockerized FastAPI machine-learning application to a cloud platform.
 
 ## Completion Checklist
 
@@ -466,8 +509,13 @@ The part I would re-read is **Prometheus monitoring and the custom `iris_predict
 - [x] Task 19 integration/load testing
 - [x] GitHub Actions independent extension
 - [x] Complete README
-- [ ] Public Render URL verified end-to-end
+- [x] Public Render deployment
+- [x] Public Render URL verified end-to-end
 
 ## Repository
 
 https://github.com/hariharan970/iris-ml-api
+
+## Public API
+
+https://iris-ml-api-ms1j.onrender.com

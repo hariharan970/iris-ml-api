@@ -4,9 +4,9 @@ Machine Learning REST API for Iris Flower Classification
 
 ## Project Overview
 
-This project builds a REST API that uses a machine learning model to classify Iris flowers based on their physical measurements. The main purpose of the project is to learn how to integrate a machine learning model into a Python API and expose its predictions through REST endpoints.
+This project builds a REST API that uses a machine learning model to classify Iris flowers based on their physical measurements.
 
-The project was developed progressively with API validation, model integration, testing, security, monitoring, API versioning, Docker containerization, and deployment-related work.
+The project was developed progressively from a basic machine learning API into a more complete API service with input validation, model integration, testing, security, monitoring, API versioning, Docker containerization, integration testing, load testing, and continuous integration.
 
 ## Dataset
 
@@ -31,11 +31,18 @@ This is a **supervised classification problem**.
 
 The selected machine learning algorithm is **Logistic Regression**.
 
-The goal is to predict the species of an Iris flower from its four measurements.
+The goal is to predict the species of an Iris flower from its four physical measurements.
 
 ## API Contract
 
-The prediction endpoint accepts four numerical measurements of an Iris flower: sepal length, sepal width, petal length, and petal width. The API validates the input before passing it to the trained Logistic Regression model.
+The prediction endpoint accepts four numerical measurements of an Iris flower:
+
+* `sepal_length`
+* `sepal_width`
+* `petal_length`
+* `petal_width`
+
+The API validates the input before passing it to the trained Logistic Regression model.
 
 ### Example Input
 
@@ -78,7 +85,9 @@ The completed API includes:
 * Automated pytest test suite
 * Docker containerization
 * Docker Compose configuration
-* Integration and load testing
+* Integration testing
+* Load testing
+* GitHub Actions CI
 
 ## Request Flow
 
@@ -101,8 +110,9 @@ Machine Learning Model
   v
 Prediction
   |
-  v
-Prometheus Metrics / Logging
+  +----> Prometheus Metrics
+  |
+  +----> Application Logs
   |
   v
 JSON Response
@@ -111,33 +121,77 @@ JSON Response
 Client
 ```
 
+### Flow Explanation
+
+First, the client sends a prediction request to the FastAPI application.
+
+The API checks the `X-API-Key` header for authentication. After the request passes security checks, Pydantic validates the input data.
+
+Valid measurements are passed to the trained Logistic Regression model. The model predicts the Iris species.
+
+The application records relevant request and prediction information through logging and Prometheus metrics before returning the prediction as a JSON response.
+
 ## API Versioning
 
-The API uses versioned routers.
+The API uses versioned routers to organize different API versions.
 
 ### Version 1
 
-The version 1 API provides the main prediction functionality, including batch prediction and model information functionality.
+Version 1 provides the main prediction functionality.
+
+It includes:
+
+* Single prediction
+* Batch prediction
+* Model information
+
+Example base path:
+
+```text
+/api/v1
+```
 
 ### Version 2
 
-The project also includes an `/api/v2` router for versioned prediction functionality.
+The project also includes a version 2 prediction router.
+
+Example base path:
+
+```text
+/api/v2
+```
+
+API versioning allows the API to evolve while keeping different versions organized.
 
 ## Batch Prediction
 
 The API supports batch prediction so that multiple Iris flower measurements can be submitted in a single request.
 
-Batch requests are validated before being passed to the model.
+Batch requests are validated before being passed to the machine learning model.
 
-The project also includes validation handling for incorrect payload shapes and batch-size edge cases.
+The project includes validation handling for:
+
+* Incorrect payload structures
+* Invalid input values
+* Empty or invalid requests
+* Batch requests that are too small
+* Batch requests that exceed the configured maximum batch size
 
 ## Model Information
 
-The API provides model information through a dedicated endpoint. This allows the running application to expose information about the loaded machine learning model.
+The API provides a dedicated model information endpoint.
+
+This allows the running application to expose information about the loaded machine learning model.
+
+## Health Check
+
+A health endpoint is included to verify that the API service is running correctly.
+
+This can be used to check the availability of the application.
 
 ## Security
 
-API key authentication was added to protect prediction endpoints.
+API key authentication was added to protect the prediction endpoints.
 
 Requests use the following HTTP header:
 
@@ -147,7 +201,9 @@ X-API-Key
 
 The API rejects requests when the API key is missing or invalid.
 
-The API also includes validation edge-case handling and CORS configuration.
+The project also includes input validation edge-case handling and CORS configuration.
+
+The API key is managed through environment variables rather than being hard-coded into the application.
 
 ## Logging
 
@@ -159,12 +215,15 @@ The project includes:
 * Console logging
 * File logging
 * Request logging middleware
+* Request ID tracking
+
+Request logging helps provide visibility into API requests and responses during development and testing.
 
 ## Monitoring
 
 Prometheus monitoring was added using `prometheus-fastapi-instrumentator`.
 
-The API exposes:
+The API exposes a metrics endpoint:
 
 ```text
 /metrics
@@ -176,7 +235,7 @@ A custom Prometheus counter is also used to track Iris predictions:
 iris_predictions_total
 ```
 
-This provides a basic monitoring foundation for the API.
+This provides a basic monitoring foundation for observing API activity and prediction counts.
 
 ## Testing
 
@@ -186,12 +245,18 @@ The test suite covers areas including:
 
 * API endpoints
 * Prediction functionality
-* Validation
+* Input validation
+* Batch prediction
 * API versioning
 * Security
 * Error handling
+* Health checks
+* Model information
+* Validation edge cases
 
-Integration and load testing were also performed.
+The completed test suite contains 13 automated tests.
+
+Integration and load testing were also performed to verify API behavior under multiple requests.
 
 ### Load Test Results
 
@@ -226,7 +291,108 @@ The project includes:
 * `Dockerfile`
 * `docker-compose.yml`
 
-Docker Compose can be used to run the application in a containerized environment.
+Docker Compose can be used to run the API in a containerized environment.
+
+### Running with Docker Compose
+
+Create a local `.env` file from the provided example:
+
+```bash
+copy .env.example .env
+```
+
+Then start the application:
+
+```bash
+docker compose up --build
+```
+
+The `.env` file contains local configuration values and is excluded from Git using `.gitignore`.
+
+## Installation
+
+Create a Python virtual environment:
+
+```bash
+python -m venv venv
+```
+
+Activate the environment on Windows:
+
+```bash
+venv\Scripts\activate
+```
+
+Install the project dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Running the API
+
+Start the FastAPI application with Uvicorn:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The API documentation can then be accessed through the FastAPI Swagger UI.
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+The OpenAPI specification is also available through:
+
+```text
+http://127.0.0.1:8000/openapi.json
+```
+
+## Running Tests
+
+Run the complete test suite with:
+
+```bash
+pytest -q
+```
+
+## GitHub Actions
+
+The project includes a GitHub Actions workflow located at:
+
+```text
+.github/workflows/tests.yml
+```
+
+The workflow provides continuous integration for the project.
+
+It automatically:
+
+1. Checks out the repository.
+2. Sets up Python 3.11.
+3. Installs the project dependencies from `requirements.txt`.
+4. Runs the complete pytest test suite using `pytest -q`.
+
+The workflow runs when changes are pushed to the `main` branch and when a pull request targets the `main` branch.
+
+This helps detect test failures and regressions after code changes.
+
+## Independent Extension
+
+### GitHub Actions Automated Testing
+
+As an independent extension, GitHub Actions CI was added to automatically run the project's automated tests.
+
+The workflow is defined in:
+
+```text
+.github/workflows/tests.yml
+```
+
+This extension was independently selected and implemented beyond the scripted project tasks.
+
+It provides continuous automated testing and helps verify that the application continues to pass its test suite when new changes are pushed to the repository.
 
 ## Project Structure
 
@@ -237,8 +403,10 @@ iris-ml-api/
 │   ├── routers/
 │   │   ├── v1.py
 │   │   └── v2.py
+│   │
 │   ├── models/
 │   │   └── schemas.py
+│   │
 │   ├── config.py
 │   ├── exceptions.py
 │   ├── logging_config.py
@@ -258,6 +426,7 @@ iris-ml-api/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
+├── .env.example
 ├── .gitignore
 └── README.md
 ```
@@ -277,99 +446,9 @@ iris-ml-api/
 * GitHub
 * GitHub Actions
 
-## Installation
-
-Create and activate a Python virtual environment:
-
-```bash
-python -m venv venv
-```
-
-Activate it on Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Install the project dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-## Running the API
-
-
-For the independent extension, I chose to add **GitHub Actions CI** so that the project's automated tests run automatically whenever the code changes.
-
-Start the FastAPI application with Uvicorn:
- 22146d7 (docs: update README with independent extension)
-
-```bash
-uvicorn app.main:app --reload
-```
-
-The API documentation can then be accessed through the FastAPI Swagger UI.
-
-## Running Tests
-
-Run the complete test suite with:
-
-```bash
-pytest -q
-```
-
-## GitHub Actions
-
-The project includes a GitHub Actions workflow located at:
-
-```text
-.github/workflows/tests.yml
-```
-
-
-The workflow runs automatically on:
-
-The workflow automatically:
- 22146d7 (docs: update README with independent extension)
-
-1. Checks out the repository.
-2. Sets up Python.
-3. Installs the dependencies from `requirements.txt`.
-4. Runs the pytest test suite.
-
-
-It performs the following steps:
-
-1. Checks out the repository.
-2. Sets up Python 3.11.
-3. Installs the dependencies from `requirements.txt`.
-4. Runs the complete pytest suite with `pytest -q`.
-
-This extension was independently selected and implemented beyond the scripted project tasks. It provides continuous automated testing and helps detect regressions after code changes.
-
-The workflow runs for pushes to the `main` branch and for pull requests targeting `main`.
- 22146d7 (docs: update README with independent extension)
-
-## Independent Extension
-
-### GitHub Actions Automated Testing
-
-As an independent extension, GitHub Actions was added to automatically run the project's pytest test suite.
-
-The workflow is defined in:
-
-```text
-.github/workflows/tests.yml
-```
-
-It automatically installs the project dependencies and executes the tests whenever changes are pushed to the `main` branch or when a pull request targets `main`.
-
-This extension was independently selected and implemented beyond the scripted project tasks. It provides continuous automated testing and helps detect regressions when new changes are pushed to the repository.
-
 ## Project Development
 
-The project was developed progressively from the initial Iris classification API into a more complete ML API service.
+The project was developed progressively from the initial Iris classification API into a more complete machine learning API service.
 
 The development covered:
 
@@ -396,8 +475,8 @@ The development covered:
 
 ## Repository
 
-https://github.com/hariharan970/iris-ml-api
+[GitHub Repository](https://github.com/hariharan970/iris-ml-api)
 
 ## Public API
 
-https://iris-ml-api-ms1j.onrender.com
+[Live API](https://iris-ml-api-ms1j.onrender.com)

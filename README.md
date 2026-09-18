@@ -456,7 +456,7 @@ The API key is configured as a Render environment variable and is not stored in 
 
 ### GitHub Actions Automated Testing
 
-The independently chosen extension is **GitHub Actions CI**.
+For the independent extension, I chose to add **GitHub Actions CI** so that the project's automated tests run automatically whenever the code changes.
 
 Workflow:
 
@@ -464,12 +464,19 @@ Workflow:
 .github/workflows/tests.yml
 ```
 
-It runs automatically on:
+The workflow runs automatically on:
 
 - Pushes to `main`
 - Pull requests targeting `main`
 
-The workflow checks out the repository, sets up Python 3.11, installs dependencies, and runs `pytest -q`.
+It performs the following steps:
+
+1. Checks out the repository.
+2. Sets up Python 3.11.
+3. Installs the dependencies from `requirements.txt`.
+4. Runs the complete pytest suite with `pytest -q`.
+
+This extension was independently selected and implemented beyond the scripted project tasks. It provides continuous automated testing and helps detect regressions after code changes.
 
 ## What I Learned
 

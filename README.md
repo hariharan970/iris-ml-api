@@ -299,11 +299,11 @@ pip install -r requirements.txt
 
 ## Running the API
 
-<<<<<<< HEAD
+
 For the independent extension, I chose to add **GitHub Actions CI** so that the project's automated tests run automatically whenever the code changes.
-=======
+
 Start the FastAPI application with Uvicorn:
->>>>>>> 22146d7 (docs: update README with independent extension)
+ 22146d7 (docs: update README with independent extension)
 
 ```bash
 uvicorn app.main:app --reload
@@ -327,18 +327,18 @@ The project includes a GitHub Actions workflow located at:
 .github/workflows/tests.yml
 ```
 
-<<<<<<< HEAD
+
 The workflow runs automatically on:
-=======
+
 The workflow automatically:
->>>>>>> 22146d7 (docs: update README with independent extension)
+ 22146d7 (docs: update README with independent extension)
 
 1. Checks out the repository.
 2. Sets up Python.
 3. Installs the dependencies from `requirements.txt`.
 4. Runs the pytest test suite.
 
-<<<<<<< HEAD
+
 It performs the following steps:
 
 1. Checks out the repository.
@@ -347,9 +347,9 @@ It performs the following steps:
 4. Runs the complete pytest suite with `pytest -q`.
 
 This extension was independently selected and implemented beyond the scripted project tasks. It provides continuous automated testing and helps detect regressions after code changes.
-=======
+
 The workflow runs for pushes to the `main` branch and for pull requests targeting `main`.
->>>>>>> 22146d7 (docs: update README with independent extension)
+ 22146d7 (docs: update README with independent extension)
 
 ## Independent Extension
 
@@ -394,8 +394,10 @@ The development covered:
 19. Integration and load testing
 20. Final polishing and independent extension
 
-## Day 1 Goal
+## Repository
 
-The dataset, machine learning problem, API contract, and initial architecture were defined before implementation began.
+https://github.com/hariharan970/iris-ml-api
 
-The project was then extended beyond the initial scope with testing, security, monitoring, containerization, deployment-related work, and an independently selected GitHub Actions extension.
+## Public API
+
+https://iris-ml-api-ms1j.onrender.com
